@@ -1,0 +1,61 @@
+name: Build and publish higher-order asymptotics book
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "higher-order-asymptotics/**"
+      - ".github/workflows/higher-order-asymptotics.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install Japanese fonts
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y fonts-noto-cjk
+      - uses: typst-community/setup-typst@v5
+        with:
+          typst-version: 0.15.1
+      - name: Build PDF
+        working-directory: higher-order-asymptotics
+        run: typst compile book.typ book.pdf
+      - name: Build HTML book bundle
+        working-directory: higher-order-asymptotics
+        run: typst compile site.typ dist/ --format bundle --features html,bundle
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: higher-order-asymptotics-book
+          path: |
+            higher-order-asymptotics/book.pdf
+            higher-order-asymptotics/dist/
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: higher-order-asymptotics/dist
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
